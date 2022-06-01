@@ -50,12 +50,17 @@ import com.unciv.ui.utils.onClick
 import com.unciv.ui.utils.surroundWithCircle
 import com.unciv.ui.utils.toLabel
 import com.unciv.utils.Log
+import java.util.concurrent.atomic.AtomicInteger
 
 
 class WorldMapHolder(
     internal val worldScreen: WorldScreen,
     internal val tileMap: TileMap
 ) : ZoomableScrollPane(20f, 20f) {
+    companion object {
+        val tileDrawCount = AtomicInteger(0)
+    }
+
     internal var selectedTile: TileInfo? = null
     val tileGroups = HashMap<TileInfo, List<WorldTileGroup>>()
 
@@ -787,7 +792,10 @@ class WorldMapHolder(
     }
 
     // For debugging purposes
-    override fun draw(batch: Batch?, parentAlpha: Float) = super.draw(batch, parentAlpha)
+    override fun draw(batch: Batch?, parentAlpha: Float) {
+        super.draw(batch, parentAlpha)
+        worldScreen.tileDrawLabel.setText(tileDrawCount.getAndSet(0))
+    }
 
     override fun act(delta: Float) = super.act(delta)
 }

@@ -1,10 +1,12 @@
 package com.unciv.ui.tilegroups
 
+import com.badlogic.gdx.graphics.g2d.Batch
 import com.unciv.UncivGame
 import com.unciv.logic.city.CityInfo
 import com.unciv.logic.civilization.CivilizationInfo
 import com.unciv.logic.map.MapUnit
 import com.unciv.logic.map.TileInfo
+import com.unciv.ui.worldscreen.WorldMapHolder
 import com.unciv.ui.worldscreen.WorldScreen
 
 
@@ -67,4 +69,9 @@ class WorldTileGroup(internal val worldScreen: WorldScreen, tileInfo: TileInfo, 
     }
 
     override fun clone(): WorldTileGroup = WorldTileGroup(worldScreen, tileInfo , tileSetStrings)
+
+    override fun draw(batch: Batch?, parentAlpha: Float) {
+        super.draw(batch, parentAlpha)
+        WorldMapHolder.tileDrawCount.incrementAndGet()
+    }
 }

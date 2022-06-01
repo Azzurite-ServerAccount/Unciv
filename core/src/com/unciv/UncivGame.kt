@@ -4,22 +4,22 @@ import com.badlogic.gdx.Application
 import com.badlogic.gdx.Game
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.Input
+import com.badlogic.gdx.graphics.FPSLogger
 import com.badlogic.gdx.scenes.scene2d.actions.Actions
 import com.badlogic.gdx.utils.Align
+import com.badlogic.gdx.utils.PerformanceCounter
+import com.badlogic.gdx.utils.TimeUtils
 import com.unciv.logic.GameInfo
 import com.unciv.logic.GameSaver
 import com.unciv.logic.civilization.PlayerType
+import com.unciv.logic.multiplayer.OnlineMultiplayer
 import com.unciv.models.metadata.GameSettings
 import com.unciv.models.ruleset.RulesetCache
 import com.unciv.models.tilesets.TileSetCache
 import com.unciv.models.translations.Translations
+import com.unciv.ui.LanguagePickerScreen
 import com.unciv.ui.audio.MusicController
 import com.unciv.ui.audio.MusicMood
-import com.unciv.ui.utils.*
-import com.unciv.ui.worldscreen.PlayerReadyScreen
-import com.unciv.ui.worldscreen.WorldScreen
-import com.unciv.logic.multiplayer.OnlineMultiplayer
-import com.unciv.ui.LanguagePickerScreen
 import com.unciv.ui.audio.Sounds
 import com.unciv.ui.crashhandling.closeExecutors
 import com.unciv.ui.crashhandling.launchCrashHandling
@@ -28,6 +28,11 @@ import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.multiplayer.LoadDeepLinkScreen
 import com.unciv.ui.multiplayer.MultiplayerHelpers
 import com.unciv.ui.popup.Popup
+import com.unciv.ui.utils.BaseScreen
+import com.unciv.ui.utils.center
+import com.unciv.ui.utils.wrapCrashHandlingUnit
+import com.unciv.ui.worldscreen.PlayerReadyScreen
+import com.unciv.ui.worldscreen.WorldScreen
 import com.unciv.utils.debug
 import kotlinx.coroutines.runBlocking
 import java.util.*
@@ -73,8 +78,21 @@ class UncivGame(parameters: UncivGameParameters) : Game() {
 
     var isInitialized = false
 
+    val perfLogger = PerfLogger()
+    val drawPerf = PerformanceCounter("UncivGame.render")
+    init {
+        perfLogger.addCounter(drawPerf)
+    }
+    val fpsLogger = FPSLogger()
     /** A wrapped render() method that crashes to [CrashScreen] on a unhandled exception or error. */
-    private val wrappedCrashHandlingRender = { super.render() }.wrapCrashHandlingUnit()
+    private val wrappedCrashHandlingRender = {
+        drawPerf.start()
+        super.render()
+        drawPerf.stop()
+        drawPerf.tick()
+        perfLogger.log()
+        fpsLogger.log()
+    }.wrapCrashHandlingUnit()
     // Stored here because I imagine that might be slightly faster than allocating for a new lambda every time, and the render loop is possibly one of the only places where that could have a significant impact.
 
 
@@ -236,7 +254,38 @@ class UncivGame(parameters: UncivGameParameters) : Game() {
         screen.resize(width, height)
     }
 
-    override fun render() = wrappedCrashHandlingRender()
+    class PerfLogger {
+        private var start = TimeUtils.nanoTime()
+        private val counters = ArrayList<PerformanceCounter>()
+        private var resetRequested = false
+
+        fun addCounter(counter: PerformanceCounter) {
+            counters.add(counter)
+        }
+        fun log() {
+            val cur = TimeUtils.nanoTime()
+            if (cur - start > 1000000000) {
+                counters.forEach { logPerfCounter(it) }
+                start = cur
+            }
+            if (resetRequested) {
+                counters.forEach { it.stop(); it.reset() }
+                resetRequested = false
+            }
+        }
+
+        private fun logPerfCounter(counter: PerformanceCounter) {
+            debug("Performance %s %s", counter.name, counter.time)
+        }
+
+        fun reset() {
+            resetRequested = true
+        }
+    }
+
+    override fun render() {
+        wrappedCrashHandlingRender()
+    }
 
     override fun dispose() = runBlocking {
         Gdx.input.inputProcessor = null // don't allow ANRs when shutting down, that's silly
